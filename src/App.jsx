@@ -1,127 +1,327 @@
-import React, { useState } from 'react';
-import { Crown, Trophy, RotateCcw } from 'lucide-react';
+import React, { useMemo, useState } from "react";
+import { Crown, RotateCcw, Trophy } from "lucide-react";
 
-const MangalaGame = () => {
-  const [board, setBoard] = useState({
-    player1: [4, 4, 4, 4, 4, 4],
-    player2: [4, 4, 4, 4, 4, 4],
-    treasure1: 0,
-    treasure2: 0
-  });
-  
+// -----------------------------
+// Constants
+// -----------------------------
+const INITIAL_BOARD = {
+  player1: [4, 4, 4, 4, 4, 4],
+  player2: [4, 4, 4, 4, 4, 4],
+  treasure1: 0,
+  treasure2: 0,
+};
+
+const INITIAL_MESSAGE = "Oyuncu 1'in sırası — Kendi tarafınızdaki bir kuyuyu seçin";
+
+// -----------------------------
+// Helpers
+// -----------------------------
+function cloneBoard(board) {
+  return {
+    player1: [...board.player1],
+    player2: [...board.player2],
+    treasure1: board.treasure1,
+    treasure2: board.treasure2,
+  };
+}
+
+function sum(arr) {
+  return arr.reduce((a, b) => a + b, 0);
+}
+
+// -----------------------------
+// UI Components
+// -----------------------------
+function Badge({ children }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-[#b4bfc6] bg-[#d9def3] px-3 py-1 text-xs font-semibold text-[#1F2937] shadow-sm backdrop-blur">
+      {children}
+    </span>
+  );
+}
+
+function TopBar({ message }) {
+  return (
+    <header className="mx-auto mb-6 max-w-5xl px-2 text-center">
+      <div className="flex items-center justify-center gap-3">
+        <Trophy className="h-8 w-8 text-amber-600" />
+        <h1 className="text-4xl font-extrabold tracking-tight text-[#1F2937] sm:text-5xl">
+          MANGALA
+        </h1>
+        <Trophy className="h-8 w-8 text-amber-600" />
+      </div>
+
+      <div className="mt-4 inline-flex max-w-3xl items-center justify-center rounded-2xl border border-[#b4bfc6] bg-[#d9def3] px-4 py-3 text-sm font-semibold text-[#1F2937] shadow-sm backdrop-blur">
+        <span className="whitespace-pre-line leading-relaxed">{message}</span>
+      </div>
+    </header>
+  );
+}
+
+function ScoreCard({ active, label, stones, tone = "blue" }) {
+  const toneClasses =
+    tone === "blue"
+      ? {
+          ring: "ring-blue-400/40",
+          pill: "bg-blue-50 text-blue-700",
+          value: "text-blue-700",
+        }
+      : {
+          ring: "ring-rose-400/40",
+          pill: "bg-rose-50 text-rose-700",
+          value: "text-rose-700",
+        };
+
+  return (
+    <div
+      className={[
+        "rounded-2xl border border-[#b4bfc6] bg-[#d9def3] p-4 shadow-sm backdrop-blur",
+        active ? `ring-2 ${toneClasses.ring}` : "",
+      ].join(" ")}
+    >
+      <div className="flex items-center justify-between gap-4">
+        <span className={`rounded-full px-3 py-1 text-xs font-bold ${toneClasses.pill}`}>
+          {label}
+        </span>
+        {active && <Badge>Aktif</Badge>}
+      </div>
+      <div className="mt-3 text-sm text-[#1F2937]">Hazine</div>
+      <div className={`text-3xl font-extrabold ${toneClasses.value}`}>{stones}</div>
+    </div>
+  );
+}
+
+function PitButton({ stones, onClick, disabled, selected, tone = "blue", ariaLabel }) {
+  const toneClasses =
+    tone === "blue"
+      ? "border-blue-500/20 bg-white/80 hover:bg-white"
+      : "border-rose-500/20 bg-white/80 hover:bg-white";
+
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      onClick={onClick}
+      disabled={disabled}
+      className={[
+        "group relative grid h-16 w-16 place-items-center rounded-2xl border shadow-sm transition",
+        "focus:outline-none focus:ring-2 focus:ring-[#a1b7ee]/60 focus:ring-offset-2 focus:ring-offset-transparent",
+        toneClasses,
+        disabled ? "cursor-not-allowed opacity-50" : "hover:-translate-y-0.5 hover:shadow-sm",
+        selected ? "ring-2 ring-[#a1b7ee]/70" : "",
+      ].join(" ")}
+    >
+      <div className="pointer-events-none flex items-center gap-2">
+        <span className="text-xl font-extrabold text-[#1F2937]">{stones}</span>
+      </div>
+
+      {/* tiny indicator */}
+      {!disabled && stones > 0 && (
+        <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-amber-400/90 opacity-80" />
+      )}
+    </button>
+  );
+}
+
+function Treasure({ stones, active, tone = "blue" }) {
+  const toneClasses =
+    tone === "blue"
+      ? "from-zinc-900 to-zinc-800"
+      : "from-zinc-900 to-zinc-800";
+
+  return (
+    <div
+      className={[
+        "relative flex h-44 w-24 items-center justify-center rounded-3xl border border-white/10 bg-[#a1b7ee] shadow-sm",
+        toneClasses,
+        active ? "ring-2 ring-[#a1b7ee]/50" : "",
+      ].join(" ")}
+    >
+      <div className="text-center">
+        <Crown className="mx-auto mb-2 h-8 w-8 text-amber-300" />
+        <div className="text-4xl font-extrabold text-[#f0f0f4]">{stones}</div>
+        <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#f0f0f4]/70">
+          Hazine
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RulesCard() {
+  return (
+    <div className="rounded-2xl border border-[#b4bfc6] bg-[#d9def3] p-4 text-sm text-[#1F2937] shadow-sm backdrop-blur">
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="font-extrabold text-[#1F2937]">Hızlı Kurallar</h3>
+        <Badge>Saat yönünün tersi</Badge>
+      </div>
+      <ul className="space-y-1 text-xs leading-relaxed">
+        <li>• Taşlar saat yönünün tersine dağıtılır.</li>
+        <li>• Rakibin hazinesine taş bırakılmaz.</li>
+        <li>• Son taş kendi hazineye düşerse tekrar oynarsın.</li>
+        <li>• Son taş boş kuyuya düşerse karşı kuyudaki taşlar yakalanır.</li>
+        <li>• Bir tarafın taşları bitince oyun biter; kalan taşlar hazinelere eklenir.</li>
+      </ul>
+    </div>
+  );
+}
+
+function GameOverModal({ open, winner, board, onRestart }) {
+  if (!open) return null;
+
+  const title =
+    winner === 1 ? "Oyuncu 1 Kazandı!" : winner === 2 ? "Oyuncu 2 Kazandı!" : "Berabere!";
+  const iconTone = winner === 1 ? "text-blue-600" : winner === 2 ? "text-rose-600" : "text-amber-600";
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white p-6 shadow-xl">
+        <div className="text-center">
+          <Trophy className={`mx-auto mb-3 h-16 w-16 ${iconTone}`} />
+          <h2 className="text-2xl font-extrabold text-[#1F2937]">{title}</h2>
+
+          <div className="mt-4 rounded-2xl bg-[#d9def3] p-4 text-left">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-semibold text-[#1F2937]">Oyuncu 1 (Hazine)</span>
+              <span className="font-extrabold text-[#1F2937]">{board.treasure1}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-sm">
+              <span className="font-semibold text-[#1F2937]">Oyuncu 2 (Hazine)</span>
+              <span className="font-extrabold text-[#1F2937]">{board.treasure2}</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onRestart}
+            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#1F2937] px-4 py-3 text-sm font-extrabold text-[#f0f0f4] shadow-sm transition hover:bg-[#111827]"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Yeni Oyun
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------
+// Main Component
+// -----------------------------
+export default function MangalaGame() {
+  const [board, setBoard] = useState(INITIAL_BOARD);
   const [currentPlayer, setCurrentPlayer] = useState(1);
   const [selectedPit, setSelectedPit] = useState(null);
-  const [score, setScore] = useState({ player1: 0, player2: 0 });
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState(null);
   const [animating, setAnimating] = useState(false);
-  const [message, setMessage] = useState('Oyuncu 1\'in sırası - Kendi tarafınızdaki bir kuyuyu seçin');
+  const [message, setMessage] = useState(INITIAL_MESSAGE);
 
-  const checkGameOver = (newBoard) => {
-    const p1Empty = newBoard.player1.every(pit => pit === 0);
-    const p2Empty = newBoard.player2.every(pit => pit === 0);
-    
-    if (p1Empty || p2Empty) {
-      const finalBoard = { ...newBoard };
-      
-      if (p1Empty) {
-        const remainingStones = finalBoard.player2.reduce((sum, stones) => sum + stones, 0);
-        finalBoard.treasure2 += remainingStones;
-        finalBoard.player2 = [0, 0, 0, 0, 0, 0];
-        setMessage(`Oyuncu 1'in taşları bitti. Oyuncu 2, kalan ${remainingStones} taşı aldı.`);
-      } else {
-        const remainingStones = finalBoard.player1.reduce((sum, stones) => sum + stones, 0);
-        finalBoard.treasure1 += remainingStones;
-        finalBoard.player1 = [0, 0, 0, 0, 0, 0];
-        setMessage(`Oyuncu 2'nin taşları bitti. Oyuncu 1, kalan ${remainingStones} taşı aldı.`);
-      }
-      
-      setBoard(finalBoard);
-      setGameOver(true);
-      
-      if (finalBoard.treasure1 > finalBoard.treasure2) {
-        setWinner(1);
-        setScore(prev => ({ ...prev, player1: prev.player1 + 1 }));
-      } else if (finalBoard.treasure2 > finalBoard.treasure1) {
-        setWinner(2);
-        setScore(prev => ({ ...prev, player2: prev.player2 + 1 }));
-      } else {
-        setWinner(0);
-      }
-      
-      return true;
+  const activeTone = currentPlayer === 1 ? "blue" : "rose";
+
+  const status = useMemo(() => {
+    return {
+      p1Empty: board.player1.every((x) => x === 0),
+      p2Empty: board.player2.every((x) => x === 0),
+    };
+  }, [board]);
+
+  const resetGame = () => {
+    setBoard(INITIAL_BOARD);
+    setCurrentPlayer(1);
+    setSelectedPit(null);
+    setGameOver(false);
+    setWinner(null);
+    setAnimating(false);
+    setMessage(INITIAL_MESSAGE);
+  };
+
+  const finalizeIfGameOver = (nextBoard) => {
+    const p1Empty = nextBoard.player1.every((x) => x === 0);
+    const p2Empty = nextBoard.player2.every((x) => x === 0);
+
+    if (!p1Empty && !p2Empty) return false;
+
+    const finalBoard = cloneBoard(nextBoard);
+
+    if (p1Empty) {
+      const remaining = sum(finalBoard.player2);
+      finalBoard.treasure2 += remaining;
+      finalBoard.player2 = [0, 0, 0, 0, 0, 0];
+      setMessage(`Oyuncu 1'in taşları bitti. Oyuncu 2 kalan ${remaining} taşı hazineye aldı.`);
+    } else {
+      const remaining = sum(finalBoard.player1);
+      finalBoard.treasure1 += remaining;
+      finalBoard.player1 = [0, 0, 0, 0, 0, 0];
+      setMessage(`Oyuncu 2'nin taşları bitti. Oyuncu 1 kalan ${remaining} taşı hazineye aldı.`);
     }
-    return false;
+
+    setBoard(finalBoard);
+    setGameOver(true);
+
+    if (finalBoard.treasure1 > finalBoard.treasure2) setWinner(1);
+    else if (finalBoard.treasure2 > finalBoard.treasure1) setWinner(2);
+    else setWinner(0);
+
+    return true;
   };
 
   const makeMove = async (pitIndex) => {
     if (animating || gameOver) return;
-    
-    const playerPits = currentPlayer === 1 ? 'player1' : 'player2';
-    const stones = board[playerPits][pitIndex];
-    
+
+    const playerKey = currentPlayer === 1 ? "player1" : "player2";
+    const stones = board[playerKey][pitIndex];
     if (stones === 0) {
-      setMessage('❌ Bu kuyuda taş yok! Başka bir kuyu seçin.');
+      setMessage("Bu kuyuda taş yok. Başka bir kuyu seçin.");
       return;
     }
-    
+
     setAnimating(true);
     setSelectedPit(pitIndex);
-    
-    const newBoard = {
-      player1: [...board.player1],
-      player2: [...board.player2],
-      treasure1: board.treasure1,
-      treasure2: board.treasure2
-    };
-    
-    newBoard[playerPits][pitIndex] = 0;
+
+    const next = cloneBoard(board);
+    next[playerKey][pitIndex] = 0;
+
     let stonesInHand = stones;
     let currentPos = pitIndex - 1;
     let currentSide = currentPlayer;
     let lastPos = -1;
     let lastSide = -1;
-    let isFirstDrop = true;
-    
+
     while (stonesInHand > 0) {
       currentPos++;
-      
+
       if (currentSide === 1) {
         if (currentPos < 6) {
-          newBoard.player1[currentPos]++;
+          next.player1[currentPos]++;
           lastPos = currentPos;
           lastSide = 1;
           stonesInHand--;
-          isFirstDrop = false;
         } else if (currentPos === 6) {
           if (currentPlayer === 1) {
-            newBoard.treasure1++;
-            lastPos = 'treasure';
+            next.treasure1++;
+            lastPos = "treasure";
             lastSide = 1;
             stonesInHand--;
           }
-          
           if (stonesInHand > 0) {
             currentSide = 2;
             currentPos = -1;
           }
         }
-      }
-      else if (currentSide === 2) {
+      } else {
         if (currentPos < 6) {
-          newBoard.player2[currentPos]++;
+          next.player2[currentPos]++;
           lastPos = currentPos;
           lastSide = 2;
           stonesInHand--;
-          isFirstDrop = false;
         } else if (currentPos === 6) {
           if (currentPlayer === 2) {
-            newBoard.treasure2++;
-            lastPos = 'treasure';
+            next.treasure2++;
+            lastPos = "treasure";
             lastSide = 2;
             stonesInHand--;
           }
-          
           if (stonesInHand > 0) {
             currentSide = 1;
             currentPos = -1;
@@ -129,254 +329,183 @@ const MangalaGame = () => {
         }
       }
     }
-    
-    await new Promise(resolve => setTimeout(resolve, 600));
-    
+
+    // small delay for UX
+    await new Promise((r) => setTimeout(r, 250));
+
     let extraTurn = false;
-    let captureMessage = '';
-    
-    if (lastPos === 'treasure' && lastSide === currentPlayer) {
+    let info = "";
+
+    // extra turn if last stone in own treasure
+    if (lastPos === "treasure" && lastSide === currentPlayer) {
       extraTurn = true;
-      captureMessage = '🎯 Son taş hazineye düştü! Tekrar oynayın.';
+      info = "Son taş hazineye düştü. Tekrar oynayın.";
     }
-    else if (lastSide === currentPlayer && lastPos !== 'treasure' && typeof lastPos === 'number') {
-      const playerPitsKey = currentPlayer === 1 ? 'player1' : 'player2';
-      const opponentPitsKey = currentPlayer === 1 ? 'player2' : 'player1';
-      
-      if (newBoard[playerPitsKey][lastPos] === 1) {
+    // capture rule (basic)
+    else if (typeof lastPos === "number" && lastSide === currentPlayer) {
+      const myKey = currentPlayer === 1 ? "player1" : "player2";
+      const oppKey = currentPlayer === 1 ? "player2" : "player1";
+
+      // if last landed in empty pit on own side
+      if (next[myKey][lastPos] === 1) {
         const oppositeIndex = 5 - lastPos;
-        const capturedStones = newBoard[opponentPitsKey][oppositeIndex];
-        
-        if (capturedStones > 0) {
-          const totalCaptured = capturedStones + 1;
-          
-          if (currentPlayer === 1) {
-            newBoard.treasure1 += totalCaptured;
-          } else {
-            newBoard.treasure2 += totalCaptured;
-          }
-          
-          newBoard[playerPitsKey][lastPos] = 0;
-          newBoard[opponentPitsKey][oppositeIndex] = 0;
-          captureMessage = `🎉 ${totalCaptured} taş yakalandı! (Karşı kuyu: ${capturedStones} + Son taş: 1)`;
+        const captured = next[oppKey][oppositeIndex];
+
+        if (captured > 0) {
+          const total = captured + 1;
+          if (currentPlayer === 1) next.treasure1 += total;
+          else next.treasure2 += total;
+
+          next[myKey][lastPos] = 0;
+          next[oppKey][oppositeIndex] = 0;
+          info = `${total} taş yakalandı.`;
         } else {
-          if (currentPlayer === 1) {
-            newBoard.treasure1 += 1;
-          } else {
-            newBoard.treasure2 += 1;
-          }
-          newBoard[playerPitsKey][lastPos] = 0;
-          captureMessage = '📦 Son taş boş kuyuya düştü ve hazineye eklendi.';
+          // your current code: move the single stone to treasure
+          if (currentPlayer === 1) next.treasure1 += 1;
+          else next.treasure2 += 1;
+
+          next[myKey][lastPos] = 0;
+          info = "Son taş hazineye eklendi.";
         }
       }
     }
-    
-    setBoard(newBoard);
-    
-    if (!checkGameOver(newBoard)) {
+
+    setBoard(next);
+
+    if (!finalizeIfGameOver(next)) {
       if (extraTurn) {
-        setMessage(`🎯 Son taş hazineye düştü! Oyuncu ${currentPlayer} tekrar oynuyor!`);
+        setMessage(`Oyuncu ${currentPlayer} — ${info}`);
       } else {
         const nextPlayer = currentPlayer === 1 ? 2 : 1;
         setCurrentPlayer(nextPlayer);
-        const msg = captureMessage ? `${captureMessage}\n\nOyuncu ${nextPlayer}'nin sırası` : `Oyuncu ${nextPlayer}'nin sırası`;
-        setMessage(msg);
+        setMessage(info ? `${info}\n\nOyuncu ${nextPlayer}'nin sırası.` : `Oyuncu ${nextPlayer}'nin sırası.`);
       }
     }
-    
+
     setAnimating(false);
     setSelectedPit(null);
   };
 
-  const resetGame = () => {
-    setBoard({
-      player1: [4, 4, 4, 4, 4, 4],
-      player2: [4, 4, 4, 4, 4, 4],
-      treasure1: 0,
-      treasure2: 0
-    });
-    setCurrentPlayer(1);
-    setGameOver(false);
-    setWinner(null);
-    setMessage('Oyuncu 1\'in sırası - Kendi tarafınızdaki bir kuyuyu seçin');
-    setSelectedPit(null);
-  };
-
-  const Pit = ({ stones, onClick, isActive, isSelected, player }) => (
-    <button
-      onClick={onClick}
-      disabled={!isActive || animating}
-      className={`
-        relative w-20 h-20 rounded-2xl transition-all duration-300 transform
-        ${isActive && !animating ? 'hover:scale-110 cursor-pointer hover:shadow-xl' : 'cursor-not-allowed opacity-60'}
-        ${isSelected ? 'ring-4 ring-yellow-400 scale-105 animate-pulse' : ''}
-        ${player === 1 ? 'bg-gradient-to-br from-blue-400 to-blue-600' : 'bg-gradient-to-br from-red-400 to-red-600'}
-        shadow-lg
-      `}
-    >
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-2xl font-bold text-white drop-shadow-lg">{stones}</span>
-      </div>
-      {stones > 0 && isActive && !animating && (
-        <div className="absolute top-1 right-1 w-3 h-3 bg-yellow-300 rounded-full animate-pulse" />
-      )}
-    </button>
-  );
-
-  const Treasure = ({ stones, player, isActive }) => (
-    <div className={`
-      relative w-24 h-48 rounded-3xl flex items-center justify-center
-      ${player === 1 ? 'bg-gradient-to-b from-blue-500 to-blue-700' : 'bg-gradient-to-b from-red-500 to-red-700'}
-      shadow-2xl border-4 border-yellow-400
-      ${isActive ? 'ring-4 ring-green-400 ring-opacity-50' : ''}
-      transition-all duration-300
-    `}>
-      <div className="text-center">
-        <Crown className="w-10 h-10 text-yellow-300 mx-auto mb-2" />
-        <div className="text-4xl font-bold text-white mb-1">{stones}</div>
-        <div className="text-xs text-yellow-200 font-semibold">HAZINE</div>
-      </div>
-    </div>
-  );
-
-  const PitLabel = ({ index }) => (
-    <div className="text-xs text-gray-600 font-semibold text-center mt-1">
-      {index + 1}
-    </div>
-  );
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 p-4">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-6">
-          <h1 className="text-5xl font-bold text-amber-900 mb-4 flex items-center justify-center gap-3">
-            <Trophy className="w-12 h-12 text-yellow-600" />
-            MANGALA
-            <Trophy className="w-12 h-12 text-yellow-600" />
-          </h1>
-          <div className="bg-white rounded-2xl shadow-lg p-4 inline-block max-w-2xl">
-            <p className="text-lg font-semibold text-gray-700 whitespace-pre-line">{message}</p>
-          </div>
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,rgba(253,230,138,0.25),transparent_55%),radial-gradient(ellipse_at_bottom,rgba(59,130,246,0.10),transparent_60%)] bg-[#f0f0f4]">
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <TopBar message={message} />
+
+        {/* Score row */}
+        <div className="mx-auto mb-6 grid max-w-3xl grid-cols-2 gap-4">
+          <ScoreCard
+            active={!gameOver && currentPlayer === 1}
+            label="Oyuncu 1"
+            stones={board.treasure1}
+            tone="blue"
+          />
+          <ScoreCard
+            active={!gameOver && currentPlayer === 2}
+            label="Oyuncu 2"
+            stones={board.treasure2}
+            tone="rose"
+          />
         </div>
 
-        <div className="flex justify-center gap-8 mb-6">
-          <div className={`rounded-xl p-4 shadow-lg transition-all ${currentPlayer === 1 && !gameOver ? 'bg-blue-200 ring-4 ring-blue-400' : 'bg-blue-100'}`}>
-            <p className="text-sm text-blue-600 font-medium">🔵 Oyuncu 1</p>
-            <p className="text-3xl font-bold text-blue-700">Skor: {score.player1}</p>
-          </div>
-          <div className={`rounded-xl p-4 shadow-lg transition-all ${currentPlayer === 2 && !gameOver ? 'bg-red-200 ring-4 ring-red-400' : 'bg-red-100'}`}>
-            <p className="text-sm text-red-600 font-medium">🔴 Oyuncu 2</p>
-            <p className="text-3xl font-bold text-red-700">Skor: {score.player2}</p>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-amber-200 to-amber-300 rounded-3xl p-8 shadow-2xl border-4 border-amber-400">
-          <div className="flex items-center justify-between gap-4 mb-8">
-            <Treasure stones={board.treasure2} player={2} isActive={currentPlayer === 2} />
-            <div className="flex-1">
-              <div className="flex gap-3 justify-center">
-                {[...board.player2].reverse().map((stones, idx) => {
-                  const actualIndex = 5 - idx;
-                  return (
-                    <div key={`p2-${actualIndex}`}>
-                      <PitLabel index={actualIndex} />
-                      <Pit
-                        stones={stones}
-                        onClick={() => makeMove(actualIndex)}
-                        isActive={currentPlayer === 2 && !gameOver}
-                        isSelected={selectedPit === actualIndex && currentPlayer === 2}
-                        player={2}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="text-center mt-2 text-sm font-bold text-red-700">
-                ← Oyuncu 2'nin Kuyuları (Saat Yönünün Tersi →)
-              </div>
-            </div>
-            <div className="w-24" />
+        {/* Board */}
+        <div className="mx-auto max-w-5xl rounded-3xl border border-[#b4bfc6] bg-[#d9def3] p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <Badge>{animating ? "Hamle yapılıyor..." : "Hazır"}</Badge>
+            <Badge>{gameOver ? "Oyun Bitti" : `Sıra: Oyuncu ${currentPlayer}`}</Badge>
           </div>
 
-          <div className="border-t-4 border-dashed border-amber-500 my-6 relative">
-            <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-amber-200 px-4 py-1 rounded-full text-xs font-bold text-amber-800">
-              SAAT YÖNÜNİN TERSİ ↺
-            </div>
-          </div>
+          <div className="grid items-center gap-6 md:grid-cols-[auto_1fr_auto]">
+            {/* Left treasure (Player 2 on top row visual) */}
+            <Treasure stones={board.treasure2} active={!gameOver && currentPlayer === 2} tone="rose" />
 
-          <div className="flex items-center justify-between gap-4">
-            <div className="w-24" />
-            <div className="flex-1">
-              <div className="text-center mb-2 text-sm font-bold text-blue-700">
-                ← Oyuncu 1'in Kuyuları (Saat Yönünün Tersi →)
-              </div>
-              <div className="flex gap-3 justify-center">
-                {board.player1.map((stones, idx) => (
-                  <div key={`p1-${idx}`}>
-                    <Pit
-                      stones={stones}
-                      onClick={() => makeMove(idx)}
-                      isActive={currentPlayer === 1 && !gameOver}
-                      isSelected={selectedPit === idx && currentPlayer === 1}
-                      player={1}
-                    />
-                    <PitLabel index={idx} />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <Treasure stones={board.treasure1} player={1} isActive={currentPlayer === 1} />
-          </div>
-        </div>
+            {/* Middle pits */}
+            <div className="space-y-6">
+              {/* Player 2 row (reversed) */}
+              <div className="rounded-2xl border border-[#b4bfc6] bg-white/50 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#1F2937]">Oyuncu 2 Kuyuları</span>
+                  <span className="text-[11px] font-semibold text-[#1F2937]">Dağıtım: ↺</span>
+                </div>
 
-        <div className="mt-6 flex gap-4 justify-center items-start">
-          <button
-            onClick={resetGame}
-            className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all flex items-center gap-2"
-          >
-            <RotateCcw className="w-5 h-5" />
-            Yeni Oyun
-          </button>
-          
-          <div className="bg-white rounded-xl p-4 shadow-lg max-w-md text-sm">
-            <h3 className="font-bold text-amber-900 mb-2">📖 Hızlı Kurallar:</h3>
-            <ul className="text-gray-700 space-y-1 text-xs">
-              <li>• Taşlar saat yönünün tersine dağıtılır</li>
-              <li>• Kendi hazineye taş bırakılır, rakipinkilere bırakılmaz</li>
-              <li>• Son taş kendi hazineye düşerse tekrar oynarsınız</li>
-              <li>• Son taş boş kuyuya düşerse karşı tarafı yakalarsınız</li>
-              <li>• Bir tarafın taşı bitince oyun sona erer</li>
-            </ul>
-          </div>
-        </div>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {[...board.player2].reverse().map((stones, idx) => {
+                    const actualIndex = 5 - idx;
+                    const disabled = gameOver || animating || currentPlayer !== 2;
 
-        {gameOver && (
-          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-            <div className="bg-white rounded-3xl p-8 shadow-2xl text-center max-w-md">
-              <Trophy className={`w-24 h-24 mx-auto mb-4 ${winner === 1 ? 'text-blue-500' : winner === 2 ? 'text-red-500' : 'text-yellow-500'}`} />
-              <h2 className="text-4xl font-bold mb-4 text-gray-800">
-                {winner === 1 ? '🔵 Oyuncu 1 Kazandı!' : winner === 2 ? '🔴 Oyuncu 2 Kazandı!' : '🤝 Berabere!'}
-              </h2>
-              <div className="mb-6 space-y-2">
-                <p className="text-xl text-gray-600">Oyuncu 1: <span className="font-bold text-blue-600">{board.treasure1}</span> taş</p>
-                <p className="text-xl text-gray-600">Oyuncu 2: <span className="font-bold text-red-600">{board.treasure2}</span> taş</p>
-                <div className="border-t-2 border-gray-300 pt-2 mt-4">
-                  <p className="text-lg font-bold text-gray-700">Toplam Skor</p>
-                  <p className="text-lg text-gray-600">Oyuncu 1: {score.player1} | Oyuncu 2: {score.player2}</p>
+                    return (
+                      <div key={`p2-${actualIndex}`} className="flex flex-col items-center gap-2">
+                        <span className="text-[11px] font-semibold text-[#1F2937]">{actualIndex + 1}</span>
+                        <PitButton
+                          stones={stones}
+                          tone="rose"
+                          disabled={disabled}
+                          selected={selectedPit === actualIndex && currentPlayer === 2}
+                          ariaLabel={`Oyuncu 2 kuyu ${actualIndex + 1}`}
+                          onClick={() => makeMove(actualIndex)}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-              <button
-                onClick={resetGame}
-                className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-8 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-              >
-                Yeni Oyun Başlat
-              </button>
+
+              {/* Divider */}
+              <div className="flex items-center justify-center">
+                <span className="rounded-full border border-[#b4bfc6] bg-white/60 px-3 py-1 text-[11px] font-bold text-[#1F2937] shadow-sm">
+                  Saat yönünün tersi ↺
+                </span>
+              </div>
+
+              {/* Player 1 row */}
+              <div className="rounded-2xl border border-[#b4bfc6] bg-white/50 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#1F2937]">Oyuncu 1 Kuyuları</span>
+                  <span className="text-[11px] font-semibold text-[#1F2937]">Dağıtım: ↺</span>
+                </div>
+
+                <div className="flex flex-wrap justify-center gap-3">
+                  {board.player1.map((stones, idx) => {
+                    const disabled = gameOver || animating || currentPlayer !== 1;
+
+                    return (
+                      <div key={`p1-${idx}`} className="flex flex-col items-center gap-2">
+                        <PitButton
+                          stones={stones}
+                          tone="blue"
+                          disabled={disabled}
+                          selected={selectedPit === idx && currentPlayer === 1}
+                          ariaLabel={`Oyuncu 1 kuyu ${idx + 1}`}
+                          onClick={() => makeMove(idx)}
+                        />
+                        <span className="text-[11px] font-semibold text-[#1F2937]">{idx + 1}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
+
+            {/* Right treasure */}
+            <Treasure stones={board.treasure1} active={!gameOver && currentPlayer === 1} tone="blue" />
           </div>
-        )}
+        </div>
+
+        {/* Bottom controls */}
+        <div className="mx-auto mt-6 grid max-w-5xl gap-4 md:grid-cols-[auto_1fr]">
+          <button
+            type="button"
+            onClick={resetGame}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1F2937] px-5 py-3 text-sm font-extrabold text-[#f0f0f4] shadow-sm transition hover:bg-[#111827]"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Yeni Oyun
+          </button>
+
+          <RulesCard />
+        </div>
+
+        <GameOverModal open={gameOver} winner={winner} board={board} onRestart={resetGame} />
       </div>
     </div>
   );
-};
-
-export default MangalaGame;
+}
