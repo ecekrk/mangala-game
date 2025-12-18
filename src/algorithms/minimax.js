@@ -1,8 +1,5 @@
-// minimax.js
+// src/minimax.js
 
-// =========================
-// Helpers
-// =========================
 const cloneBoard = (b) => ({
   player1: [...b.player1],
   player2: [...b.player2],
@@ -12,9 +9,6 @@ const cloneBoard = (b) => ({
 
 const sum = (arr) => arr.reduce((a, x) => a + x, 0);
 
-// =========================
-// Game over check
-// =========================
 function isGameOver(board) {
   return board.player1.every((x) => x === 0) || board.player2.every((x) => x === 0);
 }
@@ -32,9 +26,6 @@ function finalizeIfGameOverPure(board) {
   return b;
 }
 
-// =========================
-// Legal moves
-// =========================
 function getLegalMoves(board, player) {
   const pits = player === 1 ? board.player1 : board.player2;
   const moves = [];
@@ -42,47 +33,34 @@ function getLegalMoves(board, player) {
   return moves;
 }
 
-// =========================
-// Evaluation (same idea as yours)
 // Max player = 2
-// =========================
 function evaluateBoard(board) {
   const treasureDiff = board.treasure2 - board.treasure1;
 
-  const stoneDiff =
-    (sum(board.player2) - sum(board.player1)) * 0.3;
+  const stoneDiff = (sum(board.player2) - sum(board.player1)) * 0.3;
 
   let positionalValue = 0;
-  board.player2.forEach((stones, idx) => {
-    positionalValue += stones * (idx + 1) * 0.1;
-  });
-  board.player1.forEach((stones, idx) => {
-    positionalValue -= stones * (idx + 1) * 0.1;
-  });
+  board.player2.forEach((stones, idx) => (positionalValue += stones * (idx + 1) * 0.1));
+  board.player1.forEach((stones, idx) => (positionalValue -= stones * (idx + 1) * 0.1));
 
   return treasureDiff + stoneDiff + positionalValue;
 }
 
-// =========================
-// ✅ Pure makeMove (App.jsx ile aynı kurallar)
-// returns: { board, nextPlayer }
-// =========================
+// Same rules as App.jsx
 function makeMove(board, pitIndex, currentPlayer) {
   const next = cloneBoard(board);
-
   const playerKey = currentPlayer === 1 ? "player1" : "player2";
+
   const stones = next[playerKey][pitIndex];
   if (stones <= 0) return { board: next, nextPlayer: currentPlayer };
 
   next[playerKey][pitIndex] = 0;
 
   let stonesInHand = stones;
-
-  // Türk Mangala tek-taş istisnası
   let currentPos = stones === 1 ? pitIndex : pitIndex - 1;
-  let currentSide = currentPlayer; // 1 or 2
-  let lastPos = -1; // 0..5 or "treasure"
-  let lastSide = -1; // 1 or 2
+  let currentSide = currentPlayer;
+  let lastPos = -1;
+  let lastSide = -1;
 
   while (stonesInHand > 0) {
     currentPos++;
@@ -94,7 +72,6 @@ function makeMove(board, pitIndex, currentPlayer) {
         lastSide = 1;
         stonesInHand--;
       } else if (currentPos === 6) {
-        // player1 treasure (rakip treasure'a taş bırakmıyoruz)
         if (currentPlayer === 1) {
           next.treasure1++;
           lastPos = "treasure";
@@ -113,7 +90,6 @@ function makeMove(board, pitIndex, currentPlayer) {
         lastSide = 2;
         stonesInHand--;
       } else if (currentPos === 6) {
-        // player2 treasure
         if (currentPlayer === 2) {
           next.treasure2++;
           lastPos = "treasure";
@@ -130,12 +106,11 @@ function makeMove(board, pitIndex, currentPlayer) {
 
   let nextPlayer = currentPlayer === 1 ? 2 : 1;
 
-  // 1. kural: son taş kendi hazinesine gelirse tekrar oynar
+  // 1) last stone in own treasure => extra turn
   if (lastPos === "treasure" && lastSide === currentPlayer) {
     nextPlayer = currentPlayer;
   }
-
-  // 2. kural: son taş rakip kuyusunda ve çift yaptıysa al
+  // 2) last stone on opponent side and makes even => take
   else if (typeof lastPos === "number" && lastSide !== currentPlayer) {
     const oppKey = currentPlayer === 1 ? "player2" : "player1";
     const pitCount = next[oppKey][lastPos];
@@ -145,12 +120,10 @@ function makeMove(board, pitIndex, currentPlayer) {
       next[oppKey][lastPos] = 0;
     }
   }
-
-  // 3. kural: son taş kendi boş kuyuna düşerse ve karşısında taş varsa yakala
+  // 3) last stone on own empty pit (now 1) and opposite has stones => capture
   else if (typeof lastPos === "number" && lastSide === currentPlayer) {
     const myKey = currentPlayer === 1 ? "player1" : "player2";
     const oppKey = currentPlayer === 1 ? "player2" : "player1";
-
     if (next[myKey][lastPos] === 1) {
       const oppositeIndex = 5 - lastPos;
       const captured = next[oppKey][oppositeIndex];
@@ -158,7 +131,6 @@ function makeMove(board, pitIndex, currentPlayer) {
         const total = captured + 1;
         if (currentPlayer === 1) next.treasure1 += total;
         else next.treasure2 += total;
-
         next[myKey][lastPos] = 0;
         next[oppKey][oppositeIndex] = 0;
       }
@@ -169,10 +141,6 @@ function makeMove(board, pitIndex, currentPlayer) {
   return { board: finalBoard, nextPlayer };
 }
 
-// =========================
-// Minimax with alpha-beta
-// currentPlayer: 1 or 2
-// =========================
 export function minimax(board, depth, currentPlayer, alpha = -Infinity, beta = Infinity) {
   if (depth === 0 || isGameOver(board)) return evaluateBoard(board);
 
