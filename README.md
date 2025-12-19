@@ -77,9 +77,6 @@ evaluateBoard =
 
 Bu yaklaşım, Mangala’nın stratejik doğasına uygun **dengeleyici bir değerlendirme** sağlar.
 
-> 📌 Not: `minimax.js` dosyasındaki `makeMove` fonksiyonu, şu an için basitleştirilmiş bir simülasyon içerir.
-> Gerçek oyun mantığı, `App.jsx` içindeki hamle mekanizması temel alınarak genişletilebilir.
-
 ---
 
 ## 📚 İlgili Medium Yazısı
